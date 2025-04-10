@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "3iQUpQRCW2u4RhOqjq4yZBAayvOS14u6S1If6pJYHERyLye6y3JofVFTUQp5TpVZWacCrq6+1JUsp0vQpHPaNA==",
+  "success": true,
+  "projectFilePath": "E:\\Modding\\Schedule 1\\Schedule1StackSize\\Schedule1StackSize\\Schedule1StackSize.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\corey\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\6.0.29\\microsoft.windowsdesktop.app.ref.6.0.29.nupkg.sha512",
+    "C:\\Users\\corey\\.nuget\\packages\\microsoft.netcore.app.ref\\6.0.29\\microsoft.netcore.app.ref.6.0.29.nupkg.sha512",
+    "C:\\Users\\corey\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\6.0.29\\microsoft.aspnetcore.app.ref.6.0.29.nupkg.sha512"
+  ],
+  "logs": []
+}
