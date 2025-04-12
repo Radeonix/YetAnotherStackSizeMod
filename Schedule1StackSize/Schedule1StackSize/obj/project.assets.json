@@ -13,9 +13,9 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "E:\\Modding\\Schedule 1\\Schedule1StackSize\\Schedule1StackSize\\Schedule1StackSize.csproj",
+      "projectUniqueName": "E:\\Modding\\Schedule 1\\Schedule1StackSize\\Schedule1StackSize\\YetAnotherStackSizeMod.csproj",
       "projectName": "Schedule1StackSize",
-      "projectPath": "E:\\Modding\\Schedule 1\\Schedule1StackSize\\Schedule1StackSize\\Schedule1StackSize.csproj",
+      "projectPath": "E:\\Modding\\Schedule 1\\Schedule1StackSize\\Schedule1StackSize\\YetAnotherStackSizeMod.csproj",
       "packagesPath": "C:\\Users\\corey\\.nuget\\packages\\",
       "outputPath": "E:\\Modding\\Schedule 1\\Schedule1StackSize\\Schedule1StackSize\\obj\\",
       "projectStyle": "PackageReference",

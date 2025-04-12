@@ -20,15 +20,17 @@ using Il2CppJetBrains.Annotations;
 using static Il2CppScheduleOne.AvatarFramework.Customization.CharacterCreator;
 using Il2CppSystem.Collections.Specialized;
 using Il2CppScheduleOne.UI.Shop;
+using Il2CppScheduleOne.Storage;
+using Il2CppScheduleOne.ObjectScripts.Cash;
 
-[assembly: MelonInfo(typeof(Schedule1StackSize.StackSize1), "Schedule1StackSize", "1.0.0", "Radeonix", null)]
+[assembly: MelonInfo(typeof(YetAnotherStackSizeMod.StackSize1), "YetAnotherStackSizeMod", "1.0.0", "Radeonix", null)]
 [assembly: MelonGame("TVGS", "Schedule I")]
 
-namespace Schedule1StackSize
+namespace YetAnotherStackSizeMod
 {
     public static class Config
     {
-        public static string config_path = Path.Combine(MelonEnvironment.UserDataDirectory, "Stack_Size");
+        public static string config_path = Path.Combine(MelonEnvironment.UserDataDirectory, "YetAnotherStackSizeMod");
         private static MelonPreferences_Category StackSizeCategory;
         private static MelonPreferences_Entry<int> MiscStackSize;
         private static MelonPreferences_Entry<int> ProductStackSize;
@@ -56,24 +58,24 @@ namespace Schedule1StackSize
         public static void Init()
         {
             StackSizeCategory = MelonPreferences.CreateCategory("Stack Size Category");
-            MiscStackSize = StackSizeCategory.CreateEntry<int>("MiscStackSize", 60);
-            ProductStackSize = StackSizeCategory.CreateEntry<int>("ProductStackSize", 60);
-            IngredientStackSize = StackSizeCategory.CreateEntry<int>("IngredientStackSize", 60);
-            GrowingStackSize = StackSizeCategory.CreateEntry<int>("GrowingStackSize", 60);
-            PackagingStackSize = StackSizeCategory.CreateEntry<int>("PackagingStackSize", 60);
-            ToolsStackSize = StackSizeCategory.CreateEntry<int>("ToolsStackSize", 60);
-            LightingStackSize = StackSizeCategory.CreateEntry<int>("LightingStackSize", 60);
-            EquipmentStackSize = StackSizeCategory.CreateEntry<int>("EquipmentStackSize", 60);
-            FurnitureStackSize = StackSizeCategory.CreateEntry<int>("FurnitureStackSize", 60);
+            MiscStackSize = StackSizeCategory.CreateEntry<int>("Stack Size of all other un-included items like future categories", 60);
+            ProductStackSize = StackSizeCategory.CreateEntry<int>("Product Stack Size (bagged and unbagged products, jarred products, etc)", 60);
+            IngredientStackSize = StackSizeCategory.CreateEntry<int>("Ingredient Stack Size (horse semen, mouth wash, all Consumables like Cuke/Energy Drink, etc)", 60);
+            GrowingStackSize = StackSizeCategory.CreateEntry<int>("Growing Stack Size (Fertilizer, seeds, soil, etc)", 60);
+            PackagingStackSize = StackSizeCategory.CreateEntry<int>("Packaging Stack Size (Jars/Baggies)", 60);
+            ToolsStackSize = StackSizeCategory.CreateEntry<int>("Tools Stack Size (trash bags, all other tools are disallowed from stacking)", 60);
+            LightingStackSize = StackSizeCategory.CreateEntry<int>("Lighting Stack Size (Grow lights like LED lights)", 60);
+            EquipmentStackSize = StackSizeCategory.CreateEntry<int>("Equipment Stack Size (packaging station, mixing station, etc)", 60);
+            FurnitureStackSize = StackSizeCategory.CreateEntry<int>("Furniture Stack Size (table and other various forms of non-table furnitures)", 60);
 
             Mixer = MelonPreferences.CreateCategory("Mixer Category");
             MixerStackSize = Mixer.CreateEntry<int>("OutputSize", 60);
             MixerTimePerItem = Mixer.CreateEntry<int>("MixerTimePerItem", 1);
-            MixerEnable = Mixer.CreateEntry<bool>("Enable", true);
+            MixerEnable = Mixer.CreateEntry<bool>("Enable Mixer stack size change", true);
 
             DryingRack = MelonPreferences.CreateCategory("DryingRack Category");
             DryingRackSize = DryingRack.CreateEntry<int>("OutputSize", 60);
-            DryingRackEnable = DryingRack.CreateEntry<bool>("Enable", true);
+            DryingRackEnable = DryingRack.CreateEntry<bool>("Enable Drying Rack stack size change", true);
 
             StackSizeCategory.SetFilePath(Path.Combine(config_path, "Stack_Size.cfg"));
             StackSizeCategory.SaveToFile();
@@ -244,6 +246,7 @@ namespace Schedule1StackSize
                         //skip it and progress to next loop
                         MelonLogger.Msg("Duplicate real unique item skipped and not counted.");
                         i--;
+                        
                         x++;
                     }
                     //if unique item does not match ordered item, remove it (IE. a unique item that was ordered had zero real instances in the actual delivery)
@@ -260,18 +263,26 @@ namespace Schedule1StackSize
                     }
                     else
                     {
+                        //do not extend x past the index bounds of the real array
                         if (items1.Count-1 != x)
                         {
                             x++;
+                            //store touched real item
+                            DuplicateItem = OrderedItemTuple[i].String;
                         }
-                        //store touched real item
-                        DuplicateItem = OrderedItemTuple[i].String;
+                        else
+                        {
+                            MelonLogger.Msg("End of Real Item array reached, clearing duplicated item storage in order to prevent infinite loop");
+                            DuplicateItem = "";
+                        }
+                        
+                       
 
                     }
                         
                 }
-                MelonLogger.Msg("I am now going to refund as best I can without knowing the value of the lost items. This is at an average of $10 per item and the $200 delivery fee.");
-                float RefundAmount = (QuantityOfBadItems * 10) + 200;
+                MelonLogger.Msg("I am now going to refund as best I can without knowing the value of the lost items. This is at an average of $6 per item and the $200 delivery fee.");
+                float RefundAmount = (QuantityOfBadItems * 6) + 200;
                 MoneyManager.instance.CreateOnlineTransaction("Refund", 1, RefundAmount, "Refund");
 
                 if (instance.StoreName == "Dan's Hardware")
@@ -384,7 +395,6 @@ namespace Schedule1StackSize
                 MelonLogger.Msg("Adding " + ItemsToAdd[i].ID + " of quantity " + QuantityOfItem[i] + " to delivery vehicle");
                 DeliveryStorage.InsertItem(ItemInstanceToAdd, true);
             }
-
             MelonLogger.Msg("Vehicle Delivery Arrived.");
         }
 
@@ -446,14 +456,31 @@ namespace Schedule1StackSize
 
         }
 
-        //Instant delivery NOT TO BE INCLUDED IN MOD
-        [HarmonyPatch(typeof(DeliveryManager), "ReceiveDelivery")]
-        [HarmonyPrefix]
-        public static void InstantDelivery(NetworkConnection conn, ref DeliveryInstance delivery)
+        //Cash stack size
+        //GetCapacityForItem is the wrong method, this is used by handlers moving items into another slot, that slot is the capacity
+        [HarmonyPatch(typeof(StorageEntity), "Close")]
+        [HarmonyPostfix]
+        public static void CashStackSize(StorageEntity __instance)
         {
-            if (delivery == null) { return;}
-            delivery.TimeUntilArrival = 3;
-            MelonLogger.Msg("Instant delivery set to 3 seconds for delivery ID: " + delivery.DeliveryID);
+            if (__instance == null) { return; }
+            if (__instance.StorageEntityName.Contains("Briefcase"))
+            {
+                var temp = __instance.GetAllItems();
+                float TotalStoredCash = 0;
+                for (int i = 0; i < temp.Count; i++)
+                {
+                    if (temp[i].ID == "cash")
+                    {
+                        MelonLogger.Msg("Cash already detected inside " + temp[i].GetMonetaryValue());
+                        TotalStoredCash += temp[i].GetMonetaryValue();
+                    }
+                }
+                MelonLogger.Msg("Clearing Contents");
+                __instance.ClearContents();
+
+                MelonLogger.Msg("Total cash: " + TotalStoredCash);
+                __instance.InsertItem(MoneyManager.instance.GetCashInstance(TotalStoredCash));
+            }
         }
 
         //Stack limit change
@@ -464,41 +491,52 @@ namespace Schedule1StackSize
             if (__instance == null) return;
             //MelonLogger.Msg("Item category: " + __instance.Category.ToString());
             //MelonLogger.Msg("Item ID: " + __instance.ID);
-
+            
+            //could use a switch case but I personally find those harder to read
             if (__instance.Category.ToString() == "Consumable")
             {
                 __result = IngredientStackSize;
+                return;
             } else if (__instance.Category.ToString() == "Product")
             {
                 __result = ProductStackSize;
+                return;
             } else if (__instance.Category.ToString() == "Ingredient")
             {
                 __result = IngredientStackSize;
+                return;
             } else if (__instance.Category.ToString() == "Growing")
             {
                 __result = GrowingStackSize;
+                return;
             } else if (__instance.Category.ToString() == "Packaging")
             {
                 __result = PackagingStackSize;
+                return;
             } else if (__instance.Category.ToString() == "Furniture")
             {
                 __result = FurnitureStackSize;
+                return;
             } else if (__instance.Category.ToString() == "Lighting")
             {
                 __result = LightingStackSize;
+                return;
             } else if (__instance.Category.ToString() == "Equipment")
             {
                 __result = EquipmentStackSize;
+                return;
             } else if (__instance.Category.ToString() == "Tools")
             {
                 //only change trashbag and not weapons, ammo, or trash grabber
                 if (__instance.ID == "trashbag")
                 {
                     __result = ToolsStackSize;
+                    return;
                 }
             } else
             {
                 __result = MiscStackSize;
+                return;
             }
             
             //MelonLogger.Msg("Setting Stack Limit");
