@@ -23,7 +23,7 @@ using Il2CppScheduleOne.UI.Shop;
 using Il2CppScheduleOne.Storage;
 using Il2CppScheduleOne.ObjectScripts.Cash;
 
-[assembly: MelonInfo(typeof(YetAnotherStackSizeMod.StackSize1), "YetAnotherStackSizeMod", "1.0.0", "Radeonix", null)]
+[assembly: MelonInfo(typeof(YetAnotherStackSizeMod.StackSize1), "YetAnotherStackSizeMod", "1.1.0", "Radeonix", null)]
 [assembly: MelonGame("TVGS", "Schedule I")]
 
 namespace YetAnotherStackSizeMod
@@ -190,11 +190,56 @@ namespace YetAnotherStackSizeMod
             LoggerInstance.Msg("Initialized.");
         }
 
+        //Delivery preprocessing to attempt guarantee of real items arriving
+        [HarmonyPatch(typeof(DeliveryInstance), "AddItemsToDeliveryVehicle")]
+        [HarmonyPrefix]
+        public static bool DeliveryAddendumPre(DeliveryInstance __instance, out Il2CppReferenceArray<StringIntPair> __state)
+        {
+            //simply doing __state = __instance.Items; results in a shallow copy/pointer assignment
+            //deep copy required:
+            MelonLogger.Msg("Deep copy starting.");
+            //the below DeepCopy list does not act like a normal list. It initailizes null items so the count already equals the capacity and makes List<T>.Add() useless...
+                //It also does not have a constructor with 0 values???
+            var DeepCopy = new Il2CppReferenceArray<StringIntPair>(__instance.Items.Length);
+            StringIntPair temp;
+            for (int i = 0; i < __instance.Items.Length; i++)
+            {
+                MelonLogger.Msg(__instance.Items[i].String + " quantity being deep-copied: " + __instance.Items[i].Int);
+                temp = new StringIntPair(__instance.Items[i].String, __instance.Items[i].Int);
+                DeepCopy[i] = temp;
+            }
+            MelonLogger.Msg("Deep copy finished.");
+            __state = DeepCopy;
+
+            for(int i = 0; i < __instance.Items.Length; i++)
+            {
+                if (__instance.Items[i].Int % 10 == 0)
+                {
+                    //Must subtract and not increment as it may use more slots than are available
+                    __instance.Items[i].Int--;
+                    MelonLogger.Msg(__instance.Items[i].String + " quantity temporarily adjusted to: " + __instance.Items[i].Int);
+                }
+            }
+            return true;
+        }
+
+        //Correct Delivery quantity due to prefix tampering of user-ordered quantity
+        [HarmonyPatch(typeof(DeliveryInstance), "AddItemsToDeliveryVehicle")]
+        [HarmonyPostfix]
+        public static void DeliveryAddendumPost(DeliveryInstance __instance, Il2CppReferenceArray<StringIntPair> __state)
+        {
+            if (__instance == null) { return; }
+            MelonLogger.Msg("Restoring quantity of delivery quantities.");
+            __instance.Items = __state;
+            return;
+        }
+
         //Delivery Vehicle filling
         [HarmonyPatch(typeof(DeliveryVehicle), "Activate")]
         [HarmonyPrefix]
         public static void DeliveryFix(DeliveryVehicle __instance, ref DeliveryInstance instance)
         {
+            float RefundAmount = 0;
             var OrderedItemTuple = instance.Items;
             MelonLogger.Msg("Delivery Sent from " + instance.StoreName);
             var LVehicle = __instance.Vehicle;
@@ -221,6 +266,74 @@ namespace YetAnotherStackSizeMod
 
             MelonLogger.Msg("number of unique items ordered: " + OrderedItemTuple.Length);
             MelonLogger.Msg("number of real unique items delivered: " + UniqueItems);
+
+            if (UniqueItems == 0)
+            {
+                MelonLogger.Msg("Error! No real items delivered!");
+                MelonLogger.Msg("Initiating refund at a higher average of $10 per item plus the delivery fee");
+
+                int OrderedItemQuantity = 0;
+
+                for (int i = 0; i < OrderedItemTuple.Length; i++)
+                {
+                    if (OrderedItemTuple[i].String == "baggie" || OrderedItemTuple[i].String == "trashbag")
+                    {
+                        //help the accuracy of the refund by having the cheapest item in the game return an accurate number
+                        RefundAmount += OrderedItemTuple[i].Int;
+                    } else {
+                        OrderedItemQuantity += OrderedItemTuple[i].Int;
+                    }
+                    
+                }
+
+                RefundAmount = RefundAmount + (OrderedItemQuantity * 10) + 200;
+                MoneyManager.instance.CreateOnlineTransaction("Refund", 1, RefundAmount, "Refund");
+
+                if (instance.StoreName == "Dan's Hardware")
+                {
+                    NPCManager.GetNPC("dan_samwell").SendTextMessage("Sorry about that last delivery, lad. Some rascals got into it at a stop light and ran off with some of your goods. " +
+                        "I've refunded your delivery fee and a portion of the item costs: about $" + RefundAmount + "\n\nIn the future, try a different quantity of your ordered items." +
+                        "\n\n - Sent from Radeonix's Stack Size mod");
+                }
+                else if (instance.StoreName == "Handy Hank's Hardware")
+                {
+                    NPCManager.GetNPC("hank_stevenson").SendTextMessage("Looks like I missed some of the goods in your latest delivery. " +
+                        "I've refunded your delivery fee and a portion of the item costs: about $" + RefundAmount + "\n\nIn the future, try a different quantity of your ordered items." +
+                        "\n\n - Sent from Radeonix's Stack Size mod");
+                }
+                else if (instance.StoreName == "Gas-Mart (West)")
+                {
+                    NPCManager.GetNPC("chloe_bowers").SendTextMessage("Soooooooooo looks like we lost some of your ingredients on the way to the delivery spot. Sorry, I guess. " +
+                        "I gave you a refund and whatever for the delivery fee and some of the items: about $" + RefundAmount + "\n\nIn the future, try a different quantity of your ordered items." +
+                        "\n\n - Sent from Radeonix's Stack Size mod");
+                }
+                else if (instance.StoreName == "Gas-Mart (Central)")
+                {
+                    NPCManager.GetNPC("chloe_bowers").SendTextMessage("So like... some guy kinda just took some of your goods out of our delivery van before it got to you. Sorry, I guess. " +
+                        "I gave you a refund and whatever for the delivery fee and some of the items: about $" + RefundAmount + " \n\nIn the future, try a different quantity of your ordered items." +
+                        "\n\n - Sent from Radeonix's Stack Size mod");
+                }
+                else if (instance.StoreName == "Oscar’s Store")
+                {
+                    NPCManager.GetNPC("oscar_holland").SendTextMessage("Hey uh, we lost some of your ingredients. I swear this isn't normal around here..." +
+                        "I already paid your delivery fee back to you plus some extra dough for not delivering some stuff: about $" + RefundAmount + " \n\nIn the future, try a different quantity of your ordered items." +
+                        "\n\n - Sent from Radeonix's Stack Size mod");
+                }
+                else
+                {
+                    NPCManager.GetNPC("benji_coleman").SendTextMessage("Hey Boss, I just saw some guy jump your delivery driver on the way to the delivery drop off. I'd make sure everything is there..." +
+                        "He's definitely not a buddy of mine... but I chipped in for your delivery fee and some of the lost items: : about $" + RefundAmount + " \n\nIn the future, try a different quantity of your ordered items." +
+                        "\n\n - Sent from Radeonix's Stack Size mod");
+                }
+                //exit function
+                return;
+            }
+
+
+
+
+
+
             string[] NameOfBadItem = new string[DeliveryShop.DELIVERY_VEHICLE_SLOT_CAPACITY];
             string NameOfBadItemExample = "";
             int QuantityOfBadItems = 0;
@@ -282,7 +395,7 @@ namespace YetAnotherStackSizeMod
                         
                 }
                 MelonLogger.Msg("I am now going to refund as best I can without knowing the value of the lost items. This is at an average of $6 per item and the $200 delivery fee.");
-                float RefundAmount = (QuantityOfBadItems * 6) + 200;
+                RefundAmount = (QuantityOfBadItems * 6) + 200;
                 MoneyManager.instance.CreateOnlineTransaction("Refund", 1, RefundAmount, "Refund");
 
                 if (instance.StoreName == "Dan's Hardware")
@@ -463,7 +576,7 @@ namespace YetAnotherStackSizeMod
         public static void CashStackSize(StorageEntity __instance)
         {
             if (__instance == null) { return; }
-            if (__instance.StorageEntityName.Contains("Briefcase"))
+            if (__instance.StorageEntityName.Contains("Briefcase") || __instance.StorageEntityName == "Safe")
             {
                 var temp = __instance.GetAllItems();
                 float TotalStoredCash = 0;
@@ -473,13 +586,21 @@ namespace YetAnotherStackSizeMod
                     {
                         MelonLogger.Msg("Cash already detected inside " + temp[i].GetMonetaryValue());
                         TotalStoredCash += temp[i].GetMonetaryValue();
+                    } else
+                    {
+                        MelonLogger.Msg("Non-cash item detected, exiting method without any change to avoid item deletion.");
+                        return;
                     }
                 }
                 MelonLogger.Msg("Clearing Contents");
                 __instance.ClearContents();
-
                 MelonLogger.Msg("Total cash: " + TotalStoredCash);
-                __instance.InsertItem(MoneyManager.instance.GetCashInstance(TotalStoredCash));
+
+                if (TotalStoredCash != 0)
+                {
+                    __instance.InsertItem(MoneyManager.instance.GetCashInstance(TotalStoredCash));
+                }
+                
             }
         }
 
